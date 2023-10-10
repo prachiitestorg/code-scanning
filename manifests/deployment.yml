@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-deploy
+spec:
+  selector:
+    matchLabels:
+      app: main-deploy
+      type: main-deploy
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: main-deploy
+        type: main-deploy
+    spec:
+      containers:
+        - name: main-deploy
+          ports:
+            - containerPort: 8080
+          image: prachiacr.azurecr.io/payment:main_v1.0.1

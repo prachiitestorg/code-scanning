@@ -1,0 +1,106 @@
+name: ci-cd-actions
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [ "uat" ]
+env:
+  IMAGE_NAME: payment
+  TAG: uat_v1.0.1
+  AKSNAME: praks
+  RGNAME: prachi-rg
+  
+jobs:
+  ci-cd-actions:
+    name: 'ci-cd-actions'
+    runs-on: [self-hosted, Linux, X64, oegrunner]
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+        
+    steps:
+    # Checkout the UAT repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        ref: uat
+        submodules: true
+    
+    # Add support for more platforms with QEMU (optional)
+    # https://github.com/docker/setup-qemu-action
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
+    - name: Set up Docker Context for Buildx
+      id: buildx-context
+      run: |
+        docker context create builders
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v1
+      with:
+        version: latest
+        endpoint: builders
+      
+    # login to the ACR
+    - name: 'Docker Login'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.DOCKER_REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    #build and push to ACR (method1)    
+    - run: |
+           # docker images
+           # docker ps
+           docker build -f node/Dockerfile . -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+
+    - name: Update values.yaml
+      uses: fjogeleit/yaml-update-action@main
+      with:
+        valueFile: 'manifests/deployment.yml'
+        #propertyPath: 'file.version'
+        propertyPath: 'spec.template.spec.containers[0].image'
+        value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+        branch: uat
+        targetBranch: uat
+
+    - run: |
+          cat manifests/deployment.yml
+
+          
+####################################################  CD  #######################################
+   # Set the target AKS cluster.
+    - uses: Azure/aks-set-context@v1
+      with:
+        creds: '${{ secrets.AZURE_CREDENTIALS }}'
+        cluster-name: ${{ env.AKSNAME }}
+        resource-group: ${{ env.RGNAME }}
+
+    #install kubectl on container (runner)
+    - uses: azure/setup-kubectl@v3
+      with:
+        version: ' v1.28.2' # default is latest stable
+      id: install
+
+    - uses: Azure/k8s-create-secret@v1
+      with:
+        container-registry-url: ${{ secrets.DOCKER_REGISTRY_URL }}
+        container-registry-username: ${{ secrets.DOCKER_USERNAME }}
+        container-registry-password: ${{ secrets.DOCKER_PASSWORD }}
+        secret-name: k8s-secret
+
+        
+    ##fullstack-app/kubernetes/deployment.yaml
+
+    - uses: Azure/k8s-deploy@v4
+      with:
+        action: deploy
+        manifests: |
+          manifests/deployment.yml
+        imagepullsecrets: |
+          k8s-secret
