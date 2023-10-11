@@ -1,103 +1,85 @@
-#comment to test auto trigger for testing
 name: main-acr-actions
+
 on:
   workflow_dispatch:
   push:
-    branches:
-     - 'main'
+    tags:
+      - 'v*.*.*'
+
 env:
   IMAGE_NAME: payment
-  TAG: main_v1.0.1
+
 jobs:
+  add-version-tag:
+    runs-on: [self-hosted, Linux, X64, orgrunner]
+    steps:
+      - id: version
+        uses: battila7/get-version-action@v2
+      - name: Add Semantic Version tag to Docker Image
+        id: add-version-tag
+        uses: shrink/actions-docker-registry-tag@v3
+        with:
+          registry: azurecr.io
+          repository: '${{ github.repository }}'
+          tags: '${{ steps.version.outputs.version }}'
+
   main-acr-actions:
     name: 'main-acr-actions'
-    #runs-on: ubuntu-latest
     runs-on: [self-hosted, Linux, X64, orgrunner]
 
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
+
     steps:
-    # Checkout the prod repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v2
-      with:
-        ref: main
-        submodules: true
-    
-    # Add support for more platforms with QEMU (optional)
-    # https://github.com/docker/setup-qemu-action
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          submodules: true
 
-    - name: Set up Docker Context for Buildx
-      id: buildx-context
-      run: |
-        docker context create builders
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
 
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: docker/setup-buildx-action@v1
-      with:
-        version: latest
-        endpoint: builders
-      
-    # login to the ACR
-    - name: 'Docker Login'
-      uses: azure/docker-login@v1
-      with:
-        login-server: ${{ secrets.DOCKER_REGISTRY_URL }}
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-            
-    - name: Extract metadata (tags, labels) for Docker
-      id: meta
-      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
-      with:
-        images: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+      - name: Set up Docker Context for Buildx
+        id: buildx-context
+        run: |
+          docker context create builders
 
-    #build and push to ACR (method1)  for AKS runner  
-    - run: |
-           docker images
-           docker ps
-           docker build --no-cache -f node/Dockerfile . -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
-           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
-    #        #docker build --no-cache -f node/Dockerfile . -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
-    #        #docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          version: latest
+          endpoint: builders
 
-    
-    # ##To modify file content
-    # - name: Modify yaml file
-    #   uses: jaywcjlove/github-action-modify-file-content@main
-    #   with:
-    #     path: manifests/deployment.yml
-    #     body: "${{ env.TAG }}"
+      - name: 'Docker Login'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.DOCKER_REGISTRY_URL }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # - name: Build the frontend image and push it to ACR (method2) for windows based runner
-    #   uses: docker/build-push-action@v2
-    #   with:
-    #     push: true
-    #     tags: ${{ env.TAG }}
-    #     file: ./Dockerfile
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}
 
-    #For another dockerfile, when you want to build two images using one CI pipeline
-    # - run: |
-    #       docker build --no-cache -f fullstack-app/DockerFile . -t ${{ secrets.DOCKER_REGISTRY_URL }}/python:v0
-    #       docker push ${{ secrets.DOCKER_REGISTRY_URL }}/python:v0
+      - run: |
+          docker images
+          docker ps
+          docker build --no-cache -f node/Dockerfile . -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:'${{ steps.add-version-tag.outputs.tags }}'
+          docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:'${{ steps.add-version-tag.outputs.tags }}'
 
-    - name: Update values.yaml
-      uses: fjogeleit/yaml-update-action@main
-      with:
-        valueFile: 'manifests/deployment.yml'
-        #propertyPath: 'file.version'
-        propertyPath: 'spec.template.spec.containers[0].image'
-        value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
-        #value: ${{ env.TAG }}
-        # commitChange: true
-        branch: main
-        targetBranch: main
-        # masterBranchName: uat
+      - name: Update values.yaml
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: 'manifests/deployment.yml'
+          propertyPath: 'spec.template.spec.containers[0].image'
+          value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:'${{ steps.add-version-tag.outputs.tags }}'
+          branch: main
+          targetBranch: main
 
-    - run: |
+      - run: |
           cat manifests/deployment.yml
