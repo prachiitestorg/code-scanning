@@ -26,7 +26,7 @@ jobs:
   main-acr-actions:
     name: 'main-acr-actions'
     runs-on: [self-hosted, Linux, X64, orgrunner]
-
+    needs: add-version-tag
     defaults:
       run:
         shell: bash
