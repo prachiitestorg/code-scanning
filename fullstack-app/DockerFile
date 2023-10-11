@@ -1,4 +1,4 @@
-#FROM python:2-alpine
+###FROM python:2-alpine
 FROM python:3.10.12-alpine3.18
 COPY fullstack-app/requirements.txt /app/requirements.txt
 WORKDIR /app
