@@ -22,6 +22,7 @@ jobs:
           registry: prachiacr.azurecr.io
           repository: payment
           tags: '${{ steps.version.outputs.version }}'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   main-acr-actions:
     name: 'main-acr-actions'
