@@ -17,7 +17,7 @@ jobs:
         uses: battila7/get-version-action@v2
       - name: Add Semantic Version tag to Docker Image
         id: add-version-tag
-        uses: shrink/actions-docker-registry-tag@v3
+        uses: shrink/actions-docker-registry-tag@v3.0.0
         with:
           registry: prachiacr.azurecr.io
           repository: payment
