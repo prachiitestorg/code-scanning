@@ -19,4 +19,4 @@ spec:
           image: prachiacr.azurecr.io/testing:v1.0.2
           ports:
             - containerPort: 8080
-##testing4
+##testing semantic
