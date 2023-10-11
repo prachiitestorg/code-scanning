@@ -20,7 +20,7 @@ jobs:
         uses: shrink/actions-docker-registry-tag@v3
         with:
           registry: azusctracr.azurecr.io
-          repository: payment
+          repository: '${{ github.repository }}'
           tags: '${{ steps.version.outputs.version }}'
 
   main-acr-actions:
