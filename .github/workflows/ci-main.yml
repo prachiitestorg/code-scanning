@@ -2,32 +2,46 @@ name: main-acr-actions
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*.*.*'
+  # push:
+  #   tags:
+  #     - 'v*.*.*'
 
 env:
   IMAGE_NAME: payment
 
 jobs:
-  add-version-tag:
+  release:
     runs-on: [self-hosted, Linux, X64, orgrunner]
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+
     steps:
-      - id: version
-        uses: battila7/get-version-action@v2
-      - name: Add Semantic Version tag to Docker Image
-        id: add-version-tag
-        uses: shrink/actions-docker-registry-tag@57e97909852876c02080eff4d73b2e5e779b845b
-        with:
-          registry: prachiacr.azurecr.io
-          repository: payment
-          tags: '${{ steps.version.outputs.version }}'
-          token: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Python Semantic Release
+      uses: python-semantic-release/python-semantic-release@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    # steps:
+    #   - id: version
+    #     uses: battila7/get-version-action@v2
+    #   - name: Add Semantic Version tag to Docker Image
+    #     id: add-version-tag
+    #     uses: shrink/actions-docker-registry-tag@57e97909852876c02080eff4d73b2e5e779b845b
+    #     with:
+    #       registry: prachiacr.azurecr.io
+    #       repository: payment
+    #       tags: '${{ steps.version.outputs.version }}'
+    #       token: ${{ secrets.GITHUB_TOKEN }}
 
   main-acr-actions:
     name: 'main-acr-actions'
     runs-on: [self-hosted, Linux, X64, orgrunner]
-    needs: add-version-tag
     defaults:
       run:
         shell: bash
