@@ -41,6 +41,7 @@ jobs:
 
   main-acr-actions:
     name: 'main-acr-actions'
+    needs: release
     runs-on: [self-hosted, Linux, X64, orgrunner]
     defaults:
       run:
