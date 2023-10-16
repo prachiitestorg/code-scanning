@@ -1,13 +1,9 @@
-name: payment-cd-uat
+name: payment-cd-main
 on:
   workflow_dispatch:
-  # pull_request:
-  #   branches:
-  #   - main
-  # to set dependency, this workflow will run when "docker_build_push_acr" workflow is completed.
   workflow_run:
-    workflows: ["payment-ci-uat"]
-    # branches: [main, uat]
+    workflows: ["payment-ci-main"]
+    # branches: [main]
     types: 
       - completed
 env:
@@ -15,14 +11,15 @@ env:
   AKSNAME: praks
 
 jobs:
-  payment-cd-uat:
+  deploy:
     runs-on: [self-hosted, linux, X64, orgrunner]
+    
     steps:
   
    # Checkout the branch
     - uses: actions/checkout@v2
       with:
-        ref: uat
+        ref: main
         submodules: true
 
    # Set the target AKS cluster.
@@ -52,4 +49,4 @@ jobs:
         action: deploy
         #private-cluster: true
         manifests: |
-          manifests/uat/deployment.yml
+          manifests/deployment.yml

@@ -1,15 +1,14 @@
-name: payment-ci-uat
+name: payment-ci-github-actions-test
 on:
-  # workflow_dispatch:
+  workflow_dispatch:
   push:
-    tags:
-      - 'uat_v*'
-      - 'refs/heads/uat'
     branches:
-      - 'uat'
+      - github-actions-test
+    tags:
+      - gat_v*
 
 # concurrency:  
-#   group: uat  
+#   group: github-actions-test  
 #   # cancel-in-progress: true
 
 env:
@@ -17,51 +16,29 @@ env:
   #TAG: main_${{ github.run_number }}
 
 jobs:
-  payment-ci-uat:
+  payment-ci-github-actions-test:
     runs-on: [self-hosted, Linux, X64, orgrunner]
-    # if: github.ref == 'refs/heads/uat'
     concurrency: release
     permissions:
       id-token: write
       contents: write
 ################################## TAGGING ##################################################
     steps:
-    - name: build only on my_branch tag
-      if: ${{ github.event_name == 'release' && github.event.release.target_commitish == 'uat' }}
-    # - name: Exit if not on main branch
-    #   if: |
-    #     endsWith(github.ref, 'main') == false &&
-    #     endsWith(github.ref, 'github-actions-test') == false
-    #   run: exit -1
-    # - name: Exit if not on main branch
-    #   if: |
-    #     startsWith(github.ref, 'refs/heads/main') == false
-    #   run: exit -1
+    - name: Exit if not on main branch
+      if: |
+        endsWith(github.ref, 'main') == false &&
+        endsWith(github.ref, 'uat') == false
+      run: exit -1
 
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-        ref: uat
+        ref: main
         submodules: true
 
-    # - uses: actions/checkout@v2
-    #   with:
-    #     ref: 'refs/heads/uat'
-    #     fetch-depth: 0
-
-    # - name: Python Semantic Release
-    #   uses: python-semantic-release/python-semantic-release@master
-    #   with:
-    #     github_token: ${{ secrets.GITHUB_TOKEN }}
-    #     tag: ${{ steps.release.outputs.tag }}
-
-
-    # - name: 'Get tag'
-    #   id: tag
-    #   uses: 'WyriHaximus/github-action-get-previous-tag@8a0e045f02c0a3a04e1452df58b90fc7e555e950'
     - name: 'Get tag'
       id: tag
-      run: echo "::set-output name=tag::${GITHUB_REF/refs\/tags\//}"
+      uses: 'WyriHaximus/github-action-get-previous-tag@8a0e045f02c0a3a04e1452df58b90fc7e555e950'
 
     - name: Set correct environment
       run: |
@@ -99,25 +76,21 @@ jobs:
       uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
       with:
         images: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}
-        #tags: |
-            #type=semver,pattern={{major}}.{{minor}}.{{patch}},value=${{ env.TAG }}
 
     #build and push to ACR (method1)  for AKS runner  
     - run: |
-           docker build -f node/Dockerfile -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }} .
-           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }}
+           docker build -f node/Dockerfile -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }} .
+           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
 
     # to update deployment yaml file with proper tag
     - name: Update values.yaml
       uses: fjogeleit/yaml-update-action@main
       with:
-        valueFile: 'manifests/uat/deployment.yml'
-        #propertyPath: 'file.version'
+        valueFile: 'manifests/gat/deployment.yml'
         propertyPath: 'spec.template.spec.containers[0].image'
-        value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }}
-        branch: uat
-        targetBranch: uat
-        # masterBranchName: uat
+        value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+        branch: main
+        targetBranch: main
 
     - run: |
-          cat manifests/uat/deployment.yml
+          cat manifests/gat/deployment.yml
