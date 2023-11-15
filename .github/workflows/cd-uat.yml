@@ -53,3 +53,5 @@ jobs:
         #private-cluster: true
         manifests: |
           manifests/uat/deployment.yml
+    - run: |
+           docker logout ${{ secrets.DOCKER_REGISTRY_URL }}
