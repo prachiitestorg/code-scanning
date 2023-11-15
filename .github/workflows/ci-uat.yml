@@ -1,6 +1,6 @@
 name: payment-ci-uat
 on:
-  # workflow_dispatch:
+  # workflow_dispatch::
   push:
     tags:
       - 'uat_v*'
