@@ -5,8 +5,8 @@ on:
     tags:
       - 'uat_v*'
       - 'refs/heads/uat'
-    branches:
-      - 'uat'
+    # branches:
+    #   - 'uat'
 
 # concurrency:  
 #   group: uat  
