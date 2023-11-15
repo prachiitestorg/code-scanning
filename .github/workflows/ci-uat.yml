@@ -1,0 +1,123 @@
+name: payment-ci-uat
+on:
+  # workflow_dispatch::
+  push:
+    tags:
+      - 'uat_v*'
+      - 'refs/heads/uat'
+    # branches:
+    #   - 'uat'
+
+# concurrency:  
+#   group: uat  
+#   # cancel-in-progress: true
+
+env:
+  IMAGE_NAME: payment
+  #TAG: main_${{ github.run_number }}
+
+jobs:
+  payment-ci-uat:
+    runs-on: [self-hosted, Linux, X64, orgrunner]
+    # if: github.ref == 'refs/heads/uat'
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+################################## TAGGING ##################################################
+    steps:
+    - name: build only on my_branch tag
+      if: ${{ github.event_name == 'release' && github.event.release.target_commitish == 'uat' }}
+    # - name: Exit if not on main branch
+    #   if: |
+    #     endsWith(github.ref, 'main') == false &&
+    #     endsWith(github.ref, 'github-actions-test') == false
+    #   run: exit -1
+    # - name: Exit if not on main branch
+    #   if: |
+    #     startsWith(github.ref, 'refs/heads/main') == false
+    #   run: exit -1
+
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: uat
+        submodules: true
+
+    # - uses: actions/checkout@v2
+    #   with:
+    #     ref: 'refs/heads/uat'
+    #     fetch-depth: 0
+
+    # - name: Python Semantic Release
+    #   uses: python-semantic-release/python-semantic-release@master
+    #   with:
+    #     github_token: ${{ secrets.GITHUB_TOKEN }}
+    #     tag: ${{ steps.release.outputs.tag }}
+
+
+    # - name: 'Get tag'
+    #   id: tag
+    #   uses: 'WyriHaximus/github-action-get-previous-tag@8a0e045f02c0a3a04e1452df58b90fc7e555e950'
+    - name: 'Get tag'
+      id: tag
+      run: echo "::set-output name=tag::${GITHUB_REF/refs\/tags\//}"
+
+    - name: Set correct environment
+      run: |
+        TAG=${{ steps.tag.outputs.tag }}
+        echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+#####################################  CI  #####################################################
+    # Add support for more platforms with QEMU (optional)
+    # https://github.com/docker/setup-qemu-action
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
+    - name: Set up Docker Context for Buildx
+      id: buildx-context
+      run: |
+        docker context create builders
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v1
+      with:
+        version: latest
+        endpoint: builders
+      
+    # login to the ACR
+    - name: 'Docker Login'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.DOCKER_REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+            
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+        #tags: |
+            #type=semver,pattern={{major}}.{{minor}}.{{patch}},value=${{ env.TAG }}
+
+    #build and push to ACR (method1)  for AKS runner  
+    - run: |
+           docker build -f node/Dockerfile -t ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }} .
+           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }}
+
+    # to update deployment yaml file with proper tag
+    - name: Update values.yaml
+      uses: fjogeleit/yaml-update-action@main
+      with:
+        valueFile: 'manifests/uat/deployment.yml'
+        #propertyPath: 'file.version'
+        propertyPath: 'spec.template.spec.containers[0].image'
+        value: ${{ secrets.DOCKER_REGISTRY_URL }}/${{ env.IMAGE_NAME }}:uat_${{ env.TAG }}
+        branch: uat
+        targetBranch: uat
+        # masterBranchName: uat
+
+    - run: |
+          cat manifests/uat/deployment.yml
